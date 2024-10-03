@@ -19,12 +19,18 @@ enum AuthenticationError: Error {
 }
 
 protocol AuthenticationServiceType {
+    func checkAuthenticationState() -> String?
     func signInWithGoogle() -> AnyPublisher<User, ServiceError>
     func handleSignInWithAppleRequest(_ request: ASAuthorizationAppleIDRequest) -> String
     func handleSignInWithAppleCompletion(_ authorization: ASAuthorization, nonce: String) -> AnyPublisher<User, ServiceError>
+    func logout() -> AnyPublisher<Void, ServiceError>
 }
 
 class AuthenticationService: AuthenticationServiceType {
+    func checkAuthenticationState() -> String? {
+        return (Auth.auth().currentUser != nil) ? Auth.auth().currentUser?.uid : nil
+    }
+    
     func signInWithGoogle() -> AnyPublisher<User, ServiceError> {
         Future { [weak self] promise in
             self?.signInWithGoogle { result in
@@ -55,6 +61,17 @@ class AuthenticationService: AuthenticationServiceType {
                     promise(.failure(.error(error)))
                 }
             })
+        }.eraseToAnyPublisher()
+    }
+    
+    func logout() -> AnyPublisher<Void, ServiceError> {
+        Future { promise in
+            do {
+                try Auth.auth().signOut()
+                promise(.success(()))
+            } catch {
+                promise(.failure(.error(error)))
+            }
         }.eraseToAnyPublisher()
     }
 }
@@ -98,8 +115,8 @@ extension AuthenticationService {
     
     /// apple 로그인 요청
     private func handleSignInWithAppleCompletion(_ authorization: ASAuthorization,
-                                              nonce: String,
-                                              completion: @escaping (Result<User, Error>) -> Void) {
+                                                 nonce: String,
+                                                 completion: @escaping (Result<User, Error>) -> Void) {
         guard let appleIdCrendential = authorization.credential as? ASAuthorizationAppleIDCredential,
               let appleIDToken = appleIdCrendential.identityToken else {
             completion(.failure(AuthenticationError.tokenError))
@@ -154,6 +171,10 @@ extension AuthenticationService {
 }
 
 class StubAuthenticationService: AuthenticationServiceType {
+    func checkAuthenticationState() -> String? {
+        return nil
+    }
+    
     func signInWithGoogle() -> AnyPublisher<User, ServiceError> {
         Empty().eraseToAnyPublisher()
     }
@@ -163,6 +184,10 @@ class StubAuthenticationService: AuthenticationServiceType {
     }
     
     func handleSignInWithAppleCompletion(_ authorization: ASAuthorization, nonce: String) -> AnyPublisher<User, ServiceError> {
+        Empty().eraseToAnyPublisher()
+    }
+    
+    func logout() -> AnyPublisher<Void, ServiceError> {
         Empty().eraseToAnyPublisher()
     }
 }
